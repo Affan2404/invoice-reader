@@ -1,5 +1,0 @@
-Invoice Number: INV-2024-001
-Date: 15/03/2024
-Vendor: Sharma Electronics
-Amount Due: 12500.00
-Due Date: 30/03/2024

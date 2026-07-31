@@ -7,7 +7,8 @@ An AI-powered tool that extracts structured data (invoice number, date, vendor, 
 1. Reads a PDF invoice
 2. Extracts raw text from the PDF
 3. Sends the text to Claude with instructions to pull out key fields
-4. Saves the structured result to a CSV file for easy use in spreadsheets or accounting tools
+4. Cleans up Claude's response (handles markdown-wrapped JSON)
+5. Saves the structured result to a CSV file for easy use in spreadsheets or accounting tools
 
 ## Tech stack
 
@@ -28,8 +29,10 @@ ANTHROPIC_API_KEY=your_key_here
 
 ## Status
 
-🚧 In progress — currently extracts data from a single sample invoice. Next steps: support multiple invoices, handle scanned/image-based PDFs, build a simple interface.
+✅ Working end-to-end on a sample PDF invoice — extracts invoice number, date, due date, vendor, and amount due, and logs results to `extracted_invoices.csv`.
+
+Next steps: support batches of invoices at once, handle scanned/image-based PDFs, build a simple web interface so non-technical users can upload invoices directly.
 
 ## About
 
-Part of a broader project building AI automation tools for small businesses in India (CA firms, clinics, restaurants).
+Part of a broader project building AI automation tools for small businesses in India (starting with CA firms, clinics, and restaurants).
