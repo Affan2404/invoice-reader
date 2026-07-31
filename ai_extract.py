@@ -36,7 +36,15 @@ Invoice text:
 )
 
 # Convert Claude's JSON-formatted text into an actual Python dictionary
-extracted_data = json.loads(response.content[0].text)
+raw_text = response.content[0].text
+
+# Remove markdown code block formatting if present
+if raw_text.startswith("```"):
+    raw_text = raw_text.strip("`")       # remove backticks from both ends
+    raw_text = raw_text.replace("json", "", 1)  # remove the "json" language tag
+    raw_text = raw_text.strip()          # clean any leftover whitespace/newlines
+
+extracted_data = json.loads(raw_text)
 
 print(extracted_data)
 print("Vendor:", extracted_data["vendor"])
