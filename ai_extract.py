@@ -3,26 +3,24 @@ import json
 from dotenv import load_dotenv
 from anthropic import Anthropic
 from pypdf import PdfReader
+import csv
 
-# Load the .env file so ANTHROPIC_API_KEY becomes available
 load_dotenv()
-
-# Create a client - this is your "connection" to Claude's API
 client = Anthropic()
 
-# Read the invoice text (reusing our PDF-reading logic from earlier)
-reader = PdfReader("sample_invoice.pdf")
-page = reader.pages[0]
-invoice_text = page.extract_text()
+def extract_invoice_data(pdf_path):
+    """Reads one PDF invoice and returns extracted data as a dictionary."""
+    reader = PdfReader(pdf_path)
+    page = reader.pages[0]
+    invoice_text = page.extract_text()
 
-# Send it to Claude with clear instructions
-response = client.messages.create(
-    model="claude-sonnet-4-5",
-    max_tokens=500,
-    messages=[
-        {
-            "role": "user",
-            "content": f"""Extract the following fields from this invoice text and return ONLY a valid JSON object, nothing else:
+    response = client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=500,
+        messages=[
+            {
+                "role": "user",
+                "content": f"""Extract the following fields from this invoice text and return ONLY a valid JSON object, nothing else:
 - invoice_number
 - date
 - due_date
@@ -31,36 +29,41 @@ response = client.messages.create(
 
 Invoice text:
 {invoice_text}"""
-        }
-    ]
-)
+            }
+        ]
+    )
 
-# Convert Claude's JSON-formatted text into an actual Python dictionary
-raw_text = response.content[0].text
+    raw_text = response.content[0].text
+    if raw_text.startswith("```"):
+        raw_text = raw_text.strip("`")
+        raw_text = raw_text.replace("json", "", 1)
+        raw_text = raw_text.strip()
 
-# Remove markdown code block formatting if present
-if raw_text.startswith("```"):
-    raw_text = raw_text.strip("`")       # remove backticks from both ends
-    raw_text = raw_text.replace("json", "", 1)  # remove the "json" language tag
-    raw_text = raw_text.strip()          # clean any leftover whitespace/newlines
+    return json.loads(raw_text)
 
-extracted_data = json.loads(raw_text)
 
-print(extracted_data)
-print("Vendor:", extracted_data["vendor"])
-print("Amount Due:", extracted_data["amount_due"])
-
-import csv
-
-# Save the extracted data to a CSV file
-with open("extracted_invoices.csv", "a", newline="") as csvfile:
+def save_to_csv(data, csv_path="extracted_invoices.csv"):
+    """Appends one row of extracted data to the CSV file."""
     fieldnames = ["invoice_number", "date", "due_date", "vendor", "amount_due"]
-    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    file_exists = os.path.exists(csv_path)
 
-    # If the file is empty, write the header row first
-    if csvfile.tell() == 0:
-        writer.writeheader()
+    with open(csv_path, "a", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        if not file_exists or os.path.getsize(csv_path) == 0:
+            writer.writeheader()
+        writer.writerow(data)
 
-    writer.writerow(extracted_data)
 
-print("Saved to extracted_invoices.csv")
+# Process every PDF in the "invoices" folder
+invoice_folder = "invoices"
+
+for filename in os.listdir(invoice_folder):
+    if filename.lower().endswith(".pdf"):
+        pdf_path = os.path.join(invoice_folder, filename)
+        print(f"Processing {filename}...")
+        try:
+            data = extract_invoice_data(pdf_path)
+            save_to_csv(data)
+            print(f"  -> Saved: {data}")
+        except Exception as e:
+            print(f"  -> Failed to process {filename}: {e}")
