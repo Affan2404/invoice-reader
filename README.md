@@ -29,10 +29,23 @@ ANTHROPIC_API_KEY=your_key_here
 
 ## Status
 
-✅ Working end-to-end on a sample PDF invoice — extracts invoice number, date, due date, vendor, and amount due, and logs results to `extracted_invoices.csv`.
+Working end-to-end — processes all PDF invoices in the `invoices/` folder, extracts key fields via Claude, and logs results to `extracted_invoices.csv`. Includes error handling so one bad file doesn't stop the batch.
 
-Next steps: support batches of invoices at once, handle scanned/image-based PDFs, build a simple web interface so non-technical users can upload invoices directly.
+## Potential future improvements
 
-## About
+**Near-term**
+- Multi-page invoice support (currently only reads page 1 of each PDF)
+- OCR support for scanned/photographed invoices (many real small-business invoices are phone photos, not clean digital PDFs)
+- Duplicate detection (avoid logging the same invoice twice)
+- Extract additional fields (tax, GST number, line items, currency)
+- Log failed extractions to a separate error log
 
-Part of a broader project building AI automation tools for small businesses in India (starting with CA firms, clinics, and restaurants).
+**Medium-term**
+- Validation checks to flag likely-incorrect extractions for human review
+- Support image file uploads directly (`.jpg`, `.png`), not just PDFs
+- Export to formatted Excel instead of plain CSV
+
+**Longer-term (post-launch)**
+- Simple web interface for drag-and-drop upload
+- Multi-user support with separate client data
+- Hosted deployment for real-world client use
