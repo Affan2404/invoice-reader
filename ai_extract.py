@@ -11,8 +11,10 @@ client = Anthropic()
 def extract_invoice_data(pdf_path):
     """Reads one PDF invoice and returns extracted data as a dictionary."""
     reader = PdfReader(pdf_path)
-    page = reader.pages[0]
-    invoice_text = page.extract_text()
+    # Combine text from every page, not just the first
+    invoice_text = ""
+    for page in reader.pages:
+        invoice_text += page.extract_text() + "\n"
 
     response = client.messages.create(
         model="claude-sonnet-4-5",
@@ -41,6 +43,18 @@ Invoice text:
 
     return json.loads(raw_text)
 
+def is_duplicate(invoice_number, csv_path="extracted_invoices.csv"):
+    """Checks if an invoice number already exists in the CSV file."""
+    if not os.path.exists(csv_path):
+        return False
+
+    with open(csv_path, "r", newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            if row["invoice_number"] == invoice_number:
+                return True
+
+    return False
 
 def save_to_csv(data, csv_path="extracted_invoices.csv"):
     """Appends one row of extracted data to the CSV file."""
@@ -63,7 +77,11 @@ for filename in os.listdir(invoice_folder):
         print(f"Processing {filename}...")
         try:
             data = extract_invoice_data(pdf_path)
-            save_to_csv(data)
-            print(f"  -> Saved: {data}")
+
+            if is_duplicate(data["invoice_number"]):
+                print(f"  -> Skipped (already processed): {data['invoice_number']}")
+            else:
+                save_to_csv(data)
+                print(f"  -> Saved: {data}")
         except Exception as e:
             print(f"  -> Failed to process {filename}: {e}")
