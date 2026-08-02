@@ -4,6 +4,14 @@ from dotenv import load_dotenv
 from anthropic import Anthropic
 from pypdf import PdfReader
 import csv
+import logging
+
+# Configure logging: write errors to a file, with timestamps
+logging.basicConfig(
+    filename="errors.log",
+    level=logging.ERROR,
+    format="%(asctime)s - %(message)s"
+)
 
 load_dotenv()
 client = Anthropic()
@@ -102,4 +110,6 @@ for filename in os.listdir(invoice_folder):
                 save_to_csv(data)
                 print(f"  -> Saved: {data}")
         except Exception as e:
-            print(f"  -> Failed to process {filename}: {e}")
+            error_message = f"Failed to process {filename}: {e}"
+            print(f"  -> {error_message}")
+            logging.error(error_message)
