@@ -27,7 +27,9 @@ def extract_invoice_data(pdf_path):
 - date
 - due_date
 - vendor
+- vendor_gst_number (the GST number, if present; use null if not found)
 - amount_due
+- line_items (a list of objects, each with "description", "quantity", "unit_price", and "total" — use an empty list if none found)
 
 Invoice text:
 {invoice_text}"""
@@ -56,17 +58,33 @@ def is_duplicate(invoice_number, csv_path="extracted_invoices.csv"):
 
     return False
 
+def format_line_items(line_items):
+    """Converts a list of line item dictionaries into one readable text block."""
+    if not line_items:
+        return ""
+
+    lines = []
+    for item in line_items:
+        line = f"{item.get('description', '')} (qty: {item.get('quantity', '')}, price: {item.get('unit_price', '')}, total: {item.get('total', '')})"
+        lines.append(line)
+
+    return " | ".join(lines)
+
+
 def save_to_csv(data, csv_path="extracted_invoices.csv"):
     """Appends one row of extracted data to the CSV file."""
-    fieldnames = ["invoice_number", "date", "due_date", "vendor", "amount_due"]
+    fieldnames = ["invoice_number", "date", "due_date", "vendor", "vendor_gst_number", "amount_due", "line_items"]
     file_exists = os.path.exists(csv_path)
+
+    # Make a copy of the data with line_items converted to a readable string
+    row_data = data.copy()
+    row_data["line_items"] = format_line_items(data.get("line_items", []))
 
     with open(csv_path, "a", newline="") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         if not file_exists or os.path.getsize(csv_path) == 0:
             writer.writeheader()
-        writer.writerow(data)
-
+        writer.writerow(row_data)
 
 # Process every PDF in the "invoices" folder
 invoice_folder = "invoices"

@@ -1,2 +1,2 @@
-invoice_number,date,due_date,vendor,amount_due
-INV-2024-001,15/03/2024,30/03/2024,Sharma Electronics,12500.00
+invoice_number,date,due_date,vendor,vendor_gst_number,amount_due,line_items
+INV-2024-001,15/03/2024,30/03/2024,Sharma Electronics,29ABCDE1234F1Z5,12500.00,"LED Bulb 9W (qty: 50, price: 150.00, total: 7500.00) | Extension Cord 5m (qty: 20, price: 250.00, total: 5000.00)"
