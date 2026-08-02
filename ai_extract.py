@@ -1,10 +1,13 @@
 import os
 import json
+import logging
 from dotenv import load_dotenv
 from anthropic import Anthropic
 from pypdf import PdfReader
 import csv
-import logging
+
+load_dotenv()
+client = Anthropic()
 
 # Configure logging: write errors to a file, with timestamps
 logging.basicConfig(
@@ -13,12 +16,11 @@ logging.basicConfig(
     format="%(asctime)s - %(message)s"
 )
 
-load_dotenv()
-client = Anthropic()
 
 def extract_invoice_data(pdf_path):
     """Reads one PDF invoice and returns extracted data as a dictionary."""
     reader = PdfReader(pdf_path)
+
     # Combine text from every page, not just the first
     invoice_text = ""
     for page in reader.pages:
@@ -53,6 +55,25 @@ Invoice text:
 
     return json.loads(raw_text)
 
+
+def validate_invoice_data(data):
+    """Checks extracted data for obvious problems. Returns a list of warning messages (empty list = no issues)."""
+    warnings = []
+
+    required_fields = ["invoice_number", "date", "vendor", "amount_due"]
+    for field in required_fields:
+        if not data.get(field):
+            warnings.append(f"Missing or empty field: {field}")
+
+    amount = data.get("amount_due", "")
+    try:
+        float(amount)
+    except (ValueError, TypeError):
+        warnings.append(f"amount_due doesn't look like a valid number: '{amount}'")
+
+    return warnings
+
+
 def is_duplicate(invoice_number, csv_path="extracted_invoices.csv"):
     """Checks if an invoice number already exists in the CSV file."""
     if not os.path.exists(csv_path):
@@ -65,6 +86,7 @@ def is_duplicate(invoice_number, csv_path="extracted_invoices.csv"):
                 return True
 
     return False
+
 
 def format_line_items(line_items):
     """Converts a list of line item dictionaries into one readable text block."""
@@ -81,10 +103,10 @@ def format_line_items(line_items):
 
 def save_to_csv(data, csv_path="extracted_invoices.csv"):
     """Appends one row of extracted data to the CSV file."""
-    fieldnames = ["invoice_number", "date", "due_date", "vendor", "vendor_gst_number", "amount_due", "line_items"]
+    fieldnames = ["invoice_number", "date", "due_date", "vendor", "vendor_gst_number",
+                  "amount_due", "line_items", "needs_review", "review_notes"]
     file_exists = os.path.exists(csv_path)
 
-    # Make a copy of the data with line_items converted to a readable string
     row_data = data.copy()
     row_data["line_items"] = format_line_items(data.get("line_items", []))
 
@@ -93,6 +115,7 @@ def save_to_csv(data, csv_path="extracted_invoices.csv"):
         if not file_exists or os.path.getsize(csv_path) == 0:
             writer.writeheader()
         writer.writerow(row_data)
+
 
 # Process every PDF in the "invoices" folder
 invoice_folder = "invoices"
@@ -107,8 +130,16 @@ for filename in os.listdir(invoice_folder):
             if is_duplicate(data["invoice_number"]):
                 print(f"  -> Skipped (already processed): {data['invoice_number']}")
             else:
+                warnings = validate_invoice_data(data)
+                data["needs_review"] = bool(warnings)
+                data["review_notes"] = "; ".join(warnings)
+
                 save_to_csv(data)
-                print(f"  -> Saved: {data}")
+
+                if warnings:
+                    print(f"  -> Saved WITH WARNINGS: {data}")
+                else:
+                    print(f"  -> Saved: {data}")
         except Exception as e:
             error_message = f"Failed to process {filename}: {e}"
             print(f"  -> {error_message}")
