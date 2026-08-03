@@ -1,3 +1,4 @@
 invoice_number,date,due_date,vendor,vendor_gst_number,amount_due,line_items,needs_review,review_notes
 ,22/06/2024,,Verma Traders,,,,True,Missing or empty field: invoice_number; Missing or empty field: amount_due; amount_due doesn't look like a valid number: 'None'
 INV-2024-001,15/03/2024,30/03/2024,Sharma Electronics,29ABCDE1234F1Z5,12500.00,"LED Bulb 9W (qty: 50, price: 150.00, total: 7500.00) | Extension Cord 5m (qty: 20, price: 250.00, total: 5000.00)",False,
+INV-2024-088,10/07/2024,20/07/2024,Patel Medical Clinic,01PATEL5678G1Z2,1700.0,"General Consultation (qty: 1, price: 500.0, total: 500.0) | Blood Test Panel (qty: 1, price: 1200.0, total: 1200.0)",False,

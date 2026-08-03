@@ -5,6 +5,53 @@ from dotenv import load_dotenv
 from anthropic import Anthropic
 from pypdf import PdfReader
 import csv
+import base64
+
+def extract_from_image(image_path):
+    """Reads an invoice from an image file (.jpg or .png) using Claude's vision capability."""
+    with open(image_path, "rb") as img_file:
+        image_data = base64.standard_b64encode(img_file.read()).decode("utf-8")
+
+    media_type = "image/jpeg" if image_path.lower().endswith((".jpg", ".jpeg")) else "image/png"
+
+    response = client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=500,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": image_data,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": """Extract the following fields from this invoice image and return ONLY a valid JSON object, nothing else:
+- invoice_number
+- date
+- due_date
+- vendor
+- vendor_gst_number (the GST number, if present; use null if not found)
+- amount_due
+- line_items (a list of objects, each with "description", "quantity", "unit_price", and "total" — use an empty list if none found)""",
+                    },
+                ],
+            }
+        ],
+    )
+
+    raw_text = response.content[0].text
+    if raw_text.startswith("```"):
+        raw_text = raw_text.strip("`")
+        raw_text = raw_text.replace("json", "", 1)
+        raw_text = raw_text.strip()
+
+    return json.loads(raw_text)
 
 load_dotenv()
 client = Anthropic()
@@ -117,30 +164,41 @@ def save_to_csv(data, csv_path="extracted_invoices.csv"):
         writer.writerow(row_data)
 
 
-# Process every PDF in the "invoices" folder
+# Process every PDF or image in the "invoices" folder
 invoice_folder = "invoices"
 
 for filename in os.listdir(invoice_folder):
-    if filename.lower().endswith(".pdf"):
-        pdf_path = os.path.join(invoice_folder, filename)
-        print(f"Processing {filename}...")
-        try:
-            data = extract_invoice_data(pdf_path)
+    file_path = os.path.join(invoice_folder, filename)
+    lower_name = filename.lower()
 
-            if is_duplicate(data["invoice_number"]):
-                print(f"  -> Skipped (already processed): {data['invoice_number']}")
+    if lower_name.endswith(".pdf"):
+        is_image = False
+    elif lower_name.endswith((".jpg", ".jpeg", ".png")):
+        is_image = True
+    else:
+        continue  # skip files that aren't PDFs or supported images
+
+    print(f"Processing {filename}...")
+    try:
+        if is_image:
+            data = extract_from_image(file_path)
+        else:
+            data = extract_invoice_data(file_path)
+
+        if is_duplicate(data["invoice_number"]):
+            print(f"  -> Skipped (already processed): {data['invoice_number']}")
+        else:
+            warnings = validate_invoice_data(data)
+            data["needs_review"] = bool(warnings)
+            data["review_notes"] = "; ".join(warnings)
+
+            save_to_csv(data)
+
+            if warnings:
+                print(f"  -> Saved WITH WARNINGS: {data}")
             else:
-                warnings = validate_invoice_data(data)
-                data["needs_review"] = bool(warnings)
-                data["review_notes"] = "; ".join(warnings)
-
-                save_to_csv(data)
-
-                if warnings:
-                    print(f"  -> Saved WITH WARNINGS: {data}")
-                else:
-                    print(f"  -> Saved: {data}")
-        except Exception as e:
-            error_message = f"Failed to process {filename}: {e}"
-            print(f"  -> {error_message}")
-            logging.error(error_message)
+                print(f"  -> Saved: {data}")
+    except Exception as e:
+        error_message = f"Failed to process {filename}: {e}"
+        print(f"  -> {error_message}")
+        logging.error(error_message)
