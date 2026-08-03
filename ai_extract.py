@@ -1,11 +1,34 @@
 import os
 import json
 import logging
+import base64
 from dotenv import load_dotenv
 from anthropic import Anthropic
 from pypdf import PdfReader
 import csv
-import base64
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
+
+load_dotenv()
+client = Anthropic()
+
+# Configure logging: write errors to a file, with timestamps
+logging.basicConfig(
+    filename="errors.log",
+    level=logging.ERROR,
+    format="%(asctime)s - %(message)s"
+)
+
+
+def clean_json_response(raw_text):
+    """Strips markdown code-block formatting from an AI response and parses it as JSON."""
+    if raw_text.startswith("```"):
+        raw_text = raw_text.strip("`")
+        raw_text = raw_text.replace("json", "", 1)
+        raw_text = raw_text.strip()
+
+    return json.loads(raw_text)
+
 
 def extract_from_image(image_path):
     """Reads an invoice from an image file (.jpg or .png) using Claude's vision capability."""
@@ -45,23 +68,7 @@ def extract_from_image(image_path):
         ],
     )
 
-    raw_text = response.content[0].text
-    if raw_text.startswith("```"):
-        raw_text = raw_text.strip("`")
-        raw_text = raw_text.replace("json", "", 1)
-        raw_text = raw_text.strip()
-
-    return json.loads(raw_text)
-
-load_dotenv()
-client = Anthropic()
-
-# Configure logging: write errors to a file, with timestamps
-logging.basicConfig(
-    filename="errors.log",
-    level=logging.ERROR,
-    format="%(asctime)s - %(message)s"
-)
+    return clean_json_response(response.content[0].text)
 
 
 def extract_invoice_data(pdf_path):
@@ -94,13 +101,7 @@ Invoice text:
         ]
     )
 
-    raw_text = response.content[0].text
-    if raw_text.startswith("```"):
-        raw_text = raw_text.strip("`")
-        raw_text = raw_text.replace("json", "", 1)
-        raw_text = raw_text.strip()
-
-    return json.loads(raw_text)
+    return clean_json_response(response.content[0].text)
 
 
 def validate_invoice_data(data):
@@ -163,8 +164,6 @@ def save_to_csv(data, csv_path="extracted_invoices.csv"):
             writer.writeheader()
         writer.writerow(row_data)
 
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
 
 def export_to_excel(csv_path="extracted_invoices.csv", excel_path="extracted_invoices.xlsx"):
     """Reads the CSV data and creates a nicely formatted Excel file."""
@@ -180,7 +179,6 @@ def export_to_excel(csv_path="extracted_invoices.csv", excel_path="extracted_inv
         reader = csv.DictReader(csvfile)
         fieldnames = reader.fieldnames
 
-        # Write header row, bold and with a colored background
         sheet.append(fieldnames)
         header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
         header_font = Font(color="FFFFFF", bold=True)
@@ -188,19 +186,16 @@ def export_to_excel(csv_path="extracted_invoices.csv", excel_path="extracted_inv
             cell.fill = header_fill
             cell.font = header_font
 
-        # Write data rows
         for row in reader:
             values = [row[field] for field in fieldnames]
             sheet.append(values)
 
-            # Highlight rows that need review in light red
             if row.get("needs_review") == "True":
                 row_number = sheet.max_row
                 highlight = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
                 for cell in sheet[row_number]:
                     cell.fill = highlight
 
-    # Auto-adjust column widths based on content
     for column_cells in sheet.columns:
         max_length = max(len(str(cell.value)) for cell in column_cells if cell.value)
         column_letter = column_cells[0].column_letter
@@ -249,6 +244,5 @@ for filename in os.listdir(invoice_folder):
         print(f"  -> {error_message}")
         logging.error(error_message)
 
-        # After processing all invoices, generate a formatted Excel export
+# After processing all invoices, generate a formatted Excel export
 export_to_excel()
-
