@@ -163,6 +163,52 @@ def save_to_csv(data, csv_path="extracted_invoices.csv"):
             writer.writeheader()
         writer.writerow(row_data)
 
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
+
+def export_to_excel(csv_path="extracted_invoices.csv", excel_path="extracted_invoices.xlsx"):
+    """Reads the CSV data and creates a nicely formatted Excel file."""
+    if not os.path.exists(csv_path):
+        print("No CSV file found to export.")
+        return
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Invoices"
+
+    with open(csv_path, "r", newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        fieldnames = reader.fieldnames
+
+        # Write header row, bold and with a colored background
+        sheet.append(fieldnames)
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_font = Font(color="FFFFFF", bold=True)
+        for cell in sheet[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+
+        # Write data rows
+        for row in reader:
+            values = [row[field] for field in fieldnames]
+            sheet.append(values)
+
+            # Highlight rows that need review in light red
+            if row.get("needs_review") == "True":
+                row_number = sheet.max_row
+                highlight = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+                for cell in sheet[row_number]:
+                    cell.fill = highlight
+
+    # Auto-adjust column widths based on content
+    for column_cells in sheet.columns:
+        max_length = max(len(str(cell.value)) for cell in column_cells if cell.value)
+        column_letter = column_cells[0].column_letter
+        sheet.column_dimensions[column_letter].width = min(max_length + 2, 50)
+
+    workbook.save(excel_path)
+    print(f"Excel file saved: {excel_path}")
+
 
 # Process every PDF or image in the "invoices" folder
 invoice_folder = "invoices"
@@ -202,3 +248,7 @@ for filename in os.listdir(invoice_folder):
         error_message = f"Failed to process {filename}: {e}"
         print(f"  -> {error_message}")
         logging.error(error_message)
+
+        # After processing all invoices, generate a formatted Excel export
+export_to_excel()
+
