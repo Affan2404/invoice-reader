@@ -29,7 +29,7 @@ def test_format_line_items_with_items():
 def test_format_line_items_empty():
     """An empty list of line items should return an empty string."""
     result = format_line_items([])
-    assert result == "this is wrong on purpose"
+    assert result == ""
 
 
 def test_validate_invoice_data_clean():
