@@ -2,10 +2,11 @@ import os
 import json
 import logging
 import base64
+import csv
+from datetime import datetime
 from dotenv import load_dotenv
 from anthropic import Anthropic
 from pypdf import PdfReader
-import csv
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 
@@ -75,7 +76,6 @@ def extract_invoice_data(pdf_path):
     """Reads one PDF invoice and returns extracted data as a dictionary."""
     reader = PdfReader(pdf_path)
 
-    # Combine text from every page, not just the first
     invoice_text = ""
     for page in reader.pages:
         invoice_text += page.extract_text() + "\n"
@@ -205,8 +205,49 @@ def export_to_excel(csv_path="extracted_invoices.csv", excel_path="extracted_inv
     print(f"Excel file saved: {excel_path}")
 
 
+def log_run_summary(stats, log_path="run_history.csv"):
+    """Appends one row summarizing this entire run to the run history log."""
+    fieldnames = ["timestamp", "files_found", "processed", "skipped_duplicates",
+                  "failed", "needs_review_count"]
+    file_exists = os.path.exists(log_path)
+
+    row = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "files_found": stats["files_found"],
+        "processed": stats["processed"],
+        "skipped_duplicates": stats["skipped_duplicates"],
+        "failed": stats["failed"],
+        "needs_review_count": stats["needs_review_count"],
+    }
+
+    with open(log_path, "a", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        if not file_exists or os.path.getsize(log_path) == 0:
+            writer.writeheader()
+        writer.writerow(row)
+
+
+def print_run_summary(stats):
+    """Prints a clear end-of-run summary to the terminal."""
+    print("\n--- Run Summary ---")
+    print(f"Files found:         {stats['files_found']}")
+    print(f"Successfully saved:  {stats['processed']}")
+    print(f"Skipped (duplicate): {stats['skipped_duplicates']}")
+    print(f"Failed:              {stats['failed']}")
+    print(f"Needs review:        {stats['needs_review_count']}")
+    print("-------------------\n")
+
+
 # Process every PDF or image in the "invoices" folder
 invoice_folder = "invoices"
+
+stats = {
+    "files_found": 0,
+    "processed": 0,
+    "skipped_duplicates": 0,
+    "failed": 0,
+    "needs_review_count": 0,
+}
 
 for filename in os.listdir(invoice_folder):
     file_path = os.path.join(invoice_folder, filename)
@@ -219,6 +260,7 @@ for filename in os.listdir(invoice_folder):
     else:
         continue  # skip files that aren't PDFs or supported images
 
+    stats["files_found"] += 1
     print(f"Processing {filename}...")
     try:
         if is_image:
@@ -228,12 +270,16 @@ for filename in os.listdir(invoice_folder):
 
         if is_duplicate(data["invoice_number"]):
             print(f"  -> Skipped (already processed): {data['invoice_number']}")
+            stats["skipped_duplicates"] += 1
         else:
             warnings = validate_invoice_data(data)
             data["needs_review"] = bool(warnings)
             data["review_notes"] = "; ".join(warnings)
 
             save_to_csv(data)
+            stats["processed"] += 1
+            if warnings:
+                stats["needs_review_count"] += 1
 
             if warnings:
                 print(f"  -> Saved WITH WARNINGS: {data}")
@@ -243,6 +289,11 @@ for filename in os.listdir(invoice_folder):
         error_message = f"Failed to process {filename}: {e}"
         print(f"  -> {error_message}")
         logging.error(error_message)
+        stats["failed"] += 1
 
 # After processing all invoices, generate a formatted Excel export
 export_to_excel()
+
+# Log this run's summary and print it
+log_run_summary(stats)
+print_run_summary(stats)

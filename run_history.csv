@@ -1,0 +1,3 @@
+timestamp,files_found,processed,skipped_duplicates,failed,needs_review_count
+2026-08-06T15:54:14,2,0,2,0,0
+2026-08-06T15:57:42,3,0,2,1,0
